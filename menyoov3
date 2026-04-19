@@ -18,6 +18,10 @@ _G.Config = {
     World = {FullBright = false, Gravity = 196.2}
 }
 
+_G.Config.Teleport = {
+    TargetPlayer = nil
+}
+
 -- Удаление старых копий
 for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "Menyoo_Supreme_Animated" then v:Destroy() end end
 
@@ -200,6 +204,46 @@ local CombatPage = NewTab("COMBAT")
 local VisualsPage = NewTab("VISUALS")
 local MiscPage = NewTab("MISC")
 local WorldPage = NewTab("WORLD")
+local TeleportPage = NewTab("TELEPORT")
+
+local function RefreshTeleportList()
+    -- Очищаем старые кнопки игроков
+    for _, child in pairs(TeleportPage:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    -- Создаем новые кнопки для каждого игрока
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            local pBtn = Instance.new("TextButton", TeleportPage)
+            pBtn.Size = UDim2.new(1, 0, 0, 35)
+            pBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            pBtn.Text = "  TP TO: " .. p.DisplayName
+            pBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+            pBtn.Font = "Gotham"
+            pBtn.TextSize = 12
+            pBtn.TextXAlignment = "Left"
+            Instance.new("UICorner", pBtn)
+
+            -- Логика телепорта при нажатии
+            pBtn.MouseButton1Click:Connect(function()
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if myRoot then
+                        myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                        -- Уведомление (если есть функция Notify)
+                        if Notify then Notify("Teleport", "Teleported to " .. p.DisplayName, 2) end
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- Авто-обновление списка при входе/выходе игроков
+Players.PlayerAdded:Connect(RefreshTeleportList)
+Players.PlayerRemoving:Connect(RefreshTeleportList)
+RefreshTeleportList() -- Первый запуск
 
 -- 5. ПЛАВНЫЕ КОМПОНЕНТЫ
 local orderIdx = 0
