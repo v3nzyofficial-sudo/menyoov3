@@ -1,0 +1,566 @@
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- [[ 1. ОБНОВЛЕННАЯ ТАБЛИЦА НАСТРОЕК ]]
+_G.Config = {
+    Combat = {Aimbot = false, Fov = 150, Smooth = 20, Part = "Head", ShowCircle = false, HoldMode = false, WallCheck = false, TeamCheck = false},
+    Visuals = {Esp = false, ShowNames = false, ShowDistance = false, ShowTracers = false, ShowHealth = false},
+    Misc = {Speed = 16, Jump = 50, InfiniteJump = false, NoClip = false, FOV = 70}, -- ДОБАВИЛИ FOV ТУТ
+    World = {FullBright = false, Gravity = 196.2}
+}
+
+-- Удаление старых копий
+for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "Menyoo_Supreme_Animated" then v:Destroy() end end
+
+-- 2. ОСНОВА GUI (СГЛАЖИВАНИЕ И АНИМАЦИИ)
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "Menyoo_Supreme_Animated"
+ScreenGui.IgnoreGuiInset = true
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Main.Size = UDim2.new(0, 550, 0, 380)
+Main.Position = UDim2.new(0.5, -275, 0.5, -190)
+Main.ClipsDescendants = true 
+local MainCorner = Instance.new("UICorner", Main)
+MainCorner.CornerRadius = UDim.new(0, 12)
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Color = Color3.new(1, 1, 1)
+MainStroke.Thickness = 1.2
+MainStroke.Transparency = 0.6
+
+-- [[ НОВЫЙ БЛОК: КРУПНЫЕ ПРЕМИУМ-ЧАСТИЦЫ НА ФОНЕ ]]
+
+-- Создаем отдельный контейнер для фоновых эффектов, чтобы они не мешали кнопкам
+local ParticleContainer = Instance.new("Frame", Main)
+ParticleContainer.Name = "BackgroundParticles"
+ParticleContainer.Size = UDim2.new(1, 0, 1, 0)
+ParticleContainer.BackgroundTransparency = 1
+ParticleContainer.ZIndex = 0 -- Чтобы частицы были ЗА кнопками
+ParticleContainer.ClipsDescendants = true
+
+local function SpawnBigParticle()
+    task.spawn(function()
+        local p = Instance.new("Frame")
+        p.Name = "AmbientParticle"
+        p.Parent = ParticleContainer
+        
+        -- Рандомный размер (от 4 до 12 пикселей)
+        local size = math.random(4, 12)
+        p.Size = UDim2.new(0, size, 0, size)
+        
+        -- Начальная позиция снизу экрана
+        p.Position = UDim2.new(math.random(), 0, 1.1, 0)
+        p.BackgroundColor3 = Color3.new(1, 1, 1)
+        p.BackgroundTransparency = 0.8 -- Делаем их очень мягкими
+        p.BorderSizePixel = 0
+        
+        -- Скругление, чтобы частицы были мягкими кружками
+        local pCorner = Instance.new("UICorner")
+        pCorner.CornerRadius = UDim.new(1, 0)
+        pCorner.Parent = p
+        
+        -- Рандомный угол поворота
+        p.Rotation = math.random(0, 360)
+        
+        -- Математика полета
+        local targetPos = UDim2.new(p.Position.X.Scale + (math.random(-20, 20)/100), 0, -0.2, 0)
+        local randomTime = math.random(7, 15) -- Медленный полет
+        local randomRotation = p.Rotation + math.random(-180, 180)
+        
+        -- Анимация движения, вращения и затухания
+        local tweenInfo = TweenInfo.new(randomTime, Enum.EasingStyle.Linear)
+        local tween = TweenService:Create(p, tweenInfo, {
+            Position = targetPos,
+            Rotation = randomRotation,
+            BackgroundTransparency = 1 -- Плавно исчезают к верху
+        })
+        
+        tween:Play()
+        
+        -- Удаление после анимации
+        tween.Completed:Connect(function()
+            p:Destroy()
+        end)
+    end)
+end
+
+-- Цикл создания (реже, но частицы крупнее и живут дольше)
+task.spawn(function()
+    while task.wait(0.6) do
+        if not Main.Parent then break end
+        SpawnBigParticle()
+    end
+end)
+
+print(">>> ЭФФЕКТ КРУПНЫХ ЧАСТИЦ ЗАПУЩЕН")
+
+
+-- 3. САЙДБАР С ПРАВИЛЬНЫМИ УГЛАМИ
+local Sidebar = Instance.new("Frame", Main)
+Sidebar.Size = UDim2.new(0, 160, 1, 0); Sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Sidebar.BackgroundTransparency = 0.2; Sidebar.BorderSizePixel = 0
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
+
+-- Заплатка для правых углов сайдбара
+local SidebarPatch = Instance.new("Frame", Sidebar)
+SidebarPatch.Size = UDim2.new(0, 20, 1, 0); SidebarPatch.Position = UDim2.new(1, -20, 0, 0)
+SidebarPatch.BackgroundColor3 = Sidebar.BackgroundColor3; SidebarPatch.BorderSizePixel = 0
+
+-- Профиль Joe Goldberg
+local Profile = Instance.new("Frame", Sidebar)
+Profile.Size = UDim2.new(1, -20, 0, 60); Profile.Position = UDim2.new(0, 10, 1, -75); Profile.BackgroundTransparency = 1
+local Avatar = Instance.new("ImageLabel", Profile)
+Avatar.Size = UDim2.new(0, 42, 0, 42); Avatar.Position = UDim2.new(0, 0, 0.5, -21)
+Avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150"
+Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 0)
+local NameL = Instance.new("TextLabel", Profile)
+NameL.Position = UDim2.new(0, 50, 0, 8); NameL.Size = UDim2.new(1, -55, 0, 16); NameL.Text = LocalPlayer.DisplayName; NameL.TextColor3 = Color3.new(1, 1, 1); NameL.Font = "GothamBold"; NameL.TextSize = 12; NameL.BackgroundTransparency = 1; NameL.TextXAlignment = "Left"
+local StatusL = Instance.new("TextLabel", Profile)
+StatusL.Position = UDim2.new(0, 50, 0, 30); StatusL.Text = "MENYOO V3 USER"; StatusL.TextColor3 = Color3.fromRGB(0, 255, 150); StatusL.Font = "GothamMedium"; StatusL.TextSize = 9; StatusL.BackgroundTransparency = 1; StatusL.TextXAlignment = "Left"
+
+-- 4. СИСТЕМА ВКЛАДОК С ПЛАВНОСТЬЮ
+-- [[ 1. ПЛАВНЫЙ НЕОНОВЫЙ ПУЛЬС ГРАНИЦЫ ]]
+task.spawn(function()
+    while task.wait() do
+        local tween = game:GetService("TweenService"):Create(MainStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.8
+        })
+        tween:Play()
+        tween.Completed:Wait()
+        local tween2 = game:GetService("TweenService"):Create(MainStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.3
+        })
+        tween2:Play()
+        tween2.Completed:Wait()
+    end
+end)
+
+-- [[ 2. ПЛАВНЫЙ ИНДИКАТОР ВКЛАДОК ]]
+-- Создаем саму полоску
+local TabIndicator = Instance.new("Frame", TabHolder)
+TabIndicator.Name = "ActiveIndicator"
+TabIndicator.Size = UDim2.new(0, 2, 0, 20) -- Тонкая линия
+TabIndicator.Position = UDim2.new(0, 5, 0, 0) -- Слева у края
+TabIndicator.BackgroundColor3 = Color3.new(1, 1, 1)
+TabIndicator.BorderSizePixel = 0
+TabIndicator.ZIndex = 10
+Instance.new("UICorner", TabIndicator)
+
+-- Функция для обновления позиции индикатора
+local function MoveIndicator(button)
+    game:GetService("TweenService"):Create(TabIndicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 5, 0, button.Position.Y.Offset + (button.Size.Y.Offset / 2) - 10)
+    }):Play()
+end
+
+-- Теперь нужно зайти в функцию NewTab и в блок B.MouseButton1Click
+-- Добавь там одну строчку: MoveIndicator(B)
+
+
+local TabHolder = Instance.new("Frame", Sidebar)
+TabHolder.Position = UDim2.new(0,0,0,60); TabHolder.Size = UDim2.new(1,0,1,-150); TabHolder.BackgroundTransparency = 1
+Instance.new("UIListLayout", TabHolder).HorizontalAlignment = "Center"
+
+local PageFolder = Instance.new("Frame", Main)
+PageFolder.Position = UDim2.new(0, 175, 0, 20); PageFolder.Size = UDim2.new(1, -190, 1, -40); PageFolder.BackgroundTransparency = 1
+
+local function NewTab(name)
+    local Page = Instance.new("ScrollingFrame", PageFolder)
+    Page.Size = UDim2.new(1, 0, 1, 0); Page.BackgroundTransparency = 1; Page.Visible = false; Page.ScrollBarThickness = 0
+    Page.CanvasSize = UDim2.new(0, 0, 0, 1000)
+    local PL = Instance.new("UIListLayout", Page); PL.Padding = UDim.new(0, 10); PL.SortOrder = "LayoutOrder"
+    
+    local B = Instance.new("TextButton", TabHolder)
+    B.Size = UDim2.new(0, 135, 0, 35); B.BackgroundColor3 = Color3.fromRGB(30, 30, 30); B.BackgroundTransparency = 1
+    B.Text = name; B.TextColor3 = Color3.new(0.5, 0.5, 0.5); B.Font = "GothamMedium"; B.TextSize = 13
+    Instance.new("UICorner", B).CornerRadius = UDim.new(0, 6)
+    
+    B.MouseButton1Click:Connect(function()
+        for _, p in pairs(PageFolder:GetChildren()) do p.Visible = false end
+        for _, btn in pairs(TabHolder:GetChildren()) do if btn:IsA("TextButton") then 
+            TweenService:Create(btn, TweenInfo.new(0.3), {TextColor3 = Color3.new(0.5, 0.5, 0.5), BackgroundTransparency = 1}):Play()
+        end end
+        Page.Visible = true
+        TweenService:Create(B, TweenInfo.new(0.3), {TextColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.8}):Play()
+    end)
+    return Page
+end
+
+local CombatPage = NewTab("COMBAT")
+local VisualsPage = NewTab("VISUALS")
+local MiscPage = NewTab("MISC")
+local WorldPage = NewTab("WORLD")
+
+-- 5. ПЛАВНЫЕ КОМПОНЕНТЫ
+local orderIdx = 0
+local function AddToggle(parent, text, config, key)
+    orderIdx = orderIdx + 1
+    local b = Instance.new("TextButton", parent); b.Size = UDim2.new(1, 0, 0, 40); b.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    b.Text = "  " .. text .. " [OFF]"; b.TextColor3 = Color3.new(0.7,0.7,0.7); b.LayoutOrder = orderIdx; b.TextXAlignment = "Left"; b.Font = "Gotham"
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    b.MouseButton1Click:Connect(function()
+        config[key] = not config[key]
+        b.Text = "  " .. text .. (config[key] and " [ON]" or " [OFF]")
+        TweenService:Create(b, TweenInfo.new(0.3), {
+            TextColor3 = config[key] and Color3.new(1,1,1) or Color3.new(0.7,0.7,0.7),
+            BackgroundColor3 = config[key] and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(25, 25, 25)
+        }):Play()
+    end)
+end
+
+local function AddSlider(parent, text, min, max, config, key)
+    orderIdx = orderIdx + 1
+    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, 0, 0, 50); f.BackgroundTransparency = 1; f.LayoutOrder = orderIdx
+    local l = Instance.new("TextLabel", f); l.Size = UDim2.new(1, 0, 0, 20); l.Text = "  " .. text .. ": " .. config[key]; l.BackgroundTransparency = 1; l.TextColor3 = Color3.new(0.8,0.8,0.8); l.TextXAlignment = "Left"; l.Font = "Gotham"; l.TextSize = 11
+    local bar = Instance.new("TextButton", f); bar.Size = UDim2.new(1, 0, 0, 6); bar.Position = UDim2.new(0,0,0,28); bar.BackgroundColor3 = Color3.fromRGB(40,40,40); bar.Text = ""
+    Instance.new("UICorner", bar)
+    local fill = Instance.new("Frame", bar); fill.Size = UDim2.new((config[key]-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", fill)
+    bar.MouseButton1Down:Connect(function()
+        local move; move = RunService.RenderStepped:Connect(function()
+            local r = math.clamp((UserInputService:GetMouseLocation().X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            config[key] = math.floor(min + (max - min) * r)
+            fill.Size = UDim2.new(r, 0, 1, 0); l.Text = "  " .. text .. ": " .. config[key]
+        end)
+        UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then move:Disconnect() end end)
+    end)
+end
+
+local function AddTitle(parent, text)
+    orderIdx = orderIdx + 1
+    local t = Instance.new("TextLabel", parent); t.Size = UDim2.new(1, 0, 0, 30); t.BackgroundTransparency = 1
+    t.Text = "--- " .. text .. " ---"; t.TextColor3 = Color3.new(0.5,0.5,0.5); t.TextSize = 10; t.LayoutOrder = orderIdx; t.Font = "GothamBold"
+end
+
+-- Наполнение
+AddTitle(CombatPage, "AIMBOT"); AddSlider(CombatPage, "FOV SIZE", 10, 600, _G.Config.Combat, "Fov"); AddSlider(CombatPage, "SMOOTHNESS", 1, 100, _G.Config.Combat, "Smooth"); AddToggle(CombatPage, "ENABLE AIMBOT", _G.Config.Combat, "Aimbot"); AddToggle(CombatPage, "SHOW FOV CIRCLE", _G.Config.Combat, "ShowCircle")
+AddTitle(CombatPage, "FILTERS"); AddToggle(CombatPage, "RIGHT CLICK HOLD", _G.Config.Combat, "HoldMode"); AddToggle(CombatPage, "WALL CHECK", _G.Config.Combat, "WallCheck"); AddToggle(CombatPage, "TEAM CHECK", _G.Config.Combat, "TeamCheck")
+AddTitle(VisualsPage, "MAIN"); AddToggle(VisualsPage, "PLAYER ESP (HIGHLIGHT)", _G.Config.Visuals, "Esp")
+AddTitle(VisualsPage, "SETTINGS"); AddToggle(VisualsPage, "SHOW NAMES", _G.Config.Visuals, "ShowNames"); AddToggle(VisualsPage, "SHOW HEALTH BAR", _G.Config.Visuals, "ShowHealth"); AddToggle(VisualsPage, "SHOW DISTANCE", _G.Config.Visuals, "ShowDistance"); AddToggle(VisualsPage, "SHOW TRACERS", _G.Config.Visuals, "ShowTracers")
+AddTitle(MiscPage, "CHARACTER"); AddSlider(MiscPage, "WALKSPEED", 16, 250, _G.Config.Misc, "Speed"); AddSlider(MiscPage, "JUMP POWER", 50, 400, _G.Config.Misc, "Jump"); AddToggle(MiscPage, "INFINITE JUMP", _G.Config.Misc, "InfiniteJump"); AddToggle(MiscPage, "NOCLIP", _G.Config.Misc, "NoClip")
+AddTitle(WorldPage, "ENVIRONMENT"); AddToggle(WorldPage, "FULL BRIGHT", _G.Config.World, "FullBright"); AddTitle(WorldPage, "PHYSICS"); AddSlider(WorldPage, "GRAVITY", 0, 500, _G.Config.World, "Gravity")
+AddSlider(MiscPage, "FIELD OF VIEW", 30, 120, _G.Config.Misc, "FOV", 5)
+
+
+-- [[ 6. ИСПРАВЛЕННАЯ ЛОГИКА AIMBOT (SMART WALLCHECK) ]]
+
+local Circle = Drawing.new("Circle")
+Circle.Thickness = 1.5; Circle.Color = Color3.new(1,1,1); Circle.NumSides = 100
+local cAlpha = 0; local RightClick = false
+
+-- Слушатели мыши
+UserInputService.InputBegan:Connect(function(i,g) if not g and i.UserInputType == Enum.UserInputType.MouseButton2 then RightClick = true end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton2 then RightClick = false end end)
+
+RunService.RenderStepped:Connect(function()
+    local MousePos = UserInputService:GetMouseLocation()
+    Circle.Position = MousePos; Circle.Radius = _G.Config.Combat.Fov
+    
+    -- Проверка активности (Hold Mode или Toggle)
+    local isAim = _G.Config.Combat.Aimbot and (not _G.Config.Combat.HoldMode or RightClick)
+    
+    -- Плавность круга
+    local targetAlpha = (isAim and _G.Config.Combat.ShowCircle) and 0.8 or 0
+    cAlpha = cAlpha + (targetAlpha - cAlpha) * 0.15
+    Circle.Transparency = cAlpha; Circle.Visible = cAlpha > 0.01
+    
+    if isAim then
+        local t; local d = _G.Config.Combat.Fov
+        
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(_G.Config.Combat.Part) and p.Character:FindFirstChild("Humanoid") then
+                -- 1. Team Check
+                if _G.Config.Combat.TeamCheck and p.Team == LocalPlayer.Team then continue end
+                
+                -- 2. Health Check
+                if p.Character.Humanoid.Health <= 0 then continue end
+                
+                local head = p.Character[_G.Config.Combat.Part]
+                local pos, vis = Camera:WorldToViewportPoint(head.Position)
+                
+                if vis then
+                    -- 3. SMART WALL CHECK (Фикс "невидимых стен")
+                    if _G.Config.Combat.WallCheck then
+                        -- Проверяем, есть ли между камерой и головой врага ПЛОТНЫЕ объекты
+                        local parts = Camera:GetPartsObscuringTarget({head.Position}, {LocalPlayer.Character, p.Character})
+                        if #parts > 0 then 
+                            -- Если что-то мешает обзору, пропускаем этого игрока
+                            continue 
+                        end
+                    end
+                    
+                    local mag = (Vector2.new(pos.X, pos.Y) - MousePos).Magnitude
+                    if mag < d then d = mag; t = head end
+                end
+            end
+        end
+        
+        -- Наведение
+        if t then 
+            local Smoothness = _G.Config.Combat.Smooth / 100
+            local MainCF = CFrame.new(Camera.CFrame.Position, t.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(MainCF, Smoothness) 
+        end
+    end
+end)
+
+
+-- 7. ЛОГИКА VISUALS (BILLBOARD + SMOOTH HEALTH)
+local function ApplyESP(p)
+    local Tracer = Drawing.new("Line")
+    RunService.RenderStepped:Connect(function()
+        if p.Character and p.Character:FindFirstChild("Head") and p ~= LocalPlayer and p.Character.Humanoid.Health > 0 then
+            local head = p.Character.Head; local hum = p.Character.Humanoid; local pos, vis = Camera:WorldToViewportPoint(head.Position)
+            local tag = head:FindFirstChild("Menyoo_Tag") or Instance.new("BillboardGui", head)
+            tag.Name = "Menyoo_Tag"; tag.AlwaysOnTop = true; tag.Size = UDim2.new(0,100,0,40); tag.ExtentsOffset = Vector3.new(0,2.5,0)
+            local l = tag:FindFirstChild("L") or Instance.new("TextLabel", tag)
+            l.Name = "L"; l.BackgroundTransparency = 1; l.Size = UDim2.new(1,0,0,15); l.Font = "GothamBold"; l.TextSize = 10; l.TextColor3 = p.TeamColor.Color; l.TextStrokeTransparency = 0.5
+            local hbg = tag:FindFirstChild("HBG") or Instance.new("Frame", tag)
+            hbg.Name = "HBG"; hbg.Size = UDim2.new(0,50,0,3); hbg.Position = UDim2.new(0.5,-25,0,18); hbg.BackgroundColor3 = Color3.new(0,0,0); hbg.BorderSizePixel = 0
+            local hf = hbg:FindFirstChild("HF") or Instance.new("Frame", hbg)
+            hf.Name = "HF"; hf.BorderSizePixel = 0; hf.Size = UDim2.new(hum.Health/hum.MaxHealth, 0, 1, 0)
+            
+            local hp = hum.Health
+            local hpColor = hp > 50 and Color3.new(0, 1, 0):Lerp(Color3.new(0, 0.4, 0), (100-hp)/50) or hp > 30 and Color3.new(1, 1, 0):Lerp(Color3.new(0.6, 0.6, 0), (50-hp)/20) or Color3.new(1, 0, 0):Lerp(Color3.new(0.5, 0, 0), (30-hp)/30)
+            hf.BackgroundColor3 = hpColor
+            
+            tag.Enabled = vis and (_G.Config.Visuals.ShowNames or _G.Config.Visuals.ShowDistance or _G.Config.Visuals.ShowHealth)
+            hbg.Visible = _G.Config.Visuals.ShowHealth
+            l.Text = (_G.Config.Visuals.ShowNames and p.DisplayName or "") .. (_G.Config.Visuals.ShowDistance and " ["..math.floor((head.Position - Camera.CFrame.Position).Magnitude).."m]" or "")
+            Tracer.Visible = vis and _G.Config.Visuals.ShowTracers
+            Tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y); Tracer.To = Vector2.new(pos.X, pos.Y); Tracer.Color = p.TeamColor.Color
+            local hi = p.Character:FindFirstChild("Menyoo_HL") or Instance.new("Highlight", p.Character)
+            hi.Name = "Menyoo_HL"; hi.Enabled = _G.Config.Visuals.Esp; hi.FillColor = p.TeamColor.Color; hi.FillTransparency = 0.6
+        else Tracer.Visible = false end
+        if not p.Parent then Tracer:Remove() end
+    end)
+end
+for _, p in pairs(Players:GetPlayers()) do ApplyESP(p) end
+Players.PlayerAdded:Connect(ApplyESP)
+
+-- [[ 9. ФИНАЛЬНЫЙ ФИКС MISC: ПЛАВНЫЙ FOV И СТАБИЛЬНАЯ ФИЗИКА ]]
+
+-- 1. ЦИКЛ ДЛЯ МГНОВЕННОГО И ПЛАВНОГО FOV (60 FPS)
+RunService.RenderStepped:Connect(function()
+    if workspace.CurrentCamera.FieldOfView ~= _G.Config.Misc.FOV then
+        workspace.CurrentCamera.FieldOfView = _G.Config.Misc.FOV
+    end
+end)
+
+-- 2. ЦИКЛ ДЛЯ ТЯЖЕЛЫХ ФУНКЦИЙ (ОПТИМИЗИРОВАННЫЙ - 10 FPS)
+task.spawn(function()
+    while task.wait(0.1) do
+        local Char = LocalPlayer.Character
+        local Hum = Char and Char:FindFirstChildOfClass("Humanoid")
+        
+        if Hum then
+            -- Скорость и Прыжок (обновляем только если изменились)
+            if Hum.WalkSpeed ~= _G.Config.Misc.Speed then Hum.WalkSpeed = _G.Config.Misc.Speed end
+            if Hum.JumpPower ~= _G.Config.Misc.Jump then Hum.JumpPower = _G.Config.Misc.Jump end
+            Hum.UseJumpPower = true
+            
+            -- NoClip (самая тяжелая часть, остается в медленном цикле)
+            if _G.Config.Misc.NoClip then
+                for _, part in pairs(Char:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end
+        end
+        
+        -- Гравитация
+        if workspace.Gravity ~= _G.Config.World.Gravity then
+            workspace.Gravity = _G.Config.World.Gravity
+        end
+    end
+end)
+
+-- 3. INFINITE JUMP (ПО СОБЫТИЮ - БЕЗ ЛАГОВ)
+UserInputService.JumpRequest:Connect(function()
+    if _G.Config.Misc.InfiniteJump then
+        local Hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if Hum then Hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+
+
+
+-- [[ 9. ФИНАЛЬНЫЙ МОДУЛЬ: КЛАВИША INSERT И ЭФФЕКТЫ ОКРУЖЕНИЯ ]]
+
+-- 1. Создаем отдельный слой для полноэкранных частиц
+local GlobalFX = Instance.new("ScreenGui", game:GetService("CoreGui"))
+GlobalFX.Name = "Menyoo_Global_Particles"
+GlobalFX.IgnoreGuiInset = true
+GlobalFX.Enabled = false -- По умолчанию частицы не летают
+
+-- 2. Подготавливаем Блюр
+local ScreenBlur = game:GetService("Lighting"):FindFirstChild("Menyoo_Blur_Supreme") or Instance.new("BlurEffect", game:GetService("Lighting"))
+ScreenBlur.Name = "Menyoo_Blur_Supreme"
+ScreenBlur.Size = 0
+ScreenBlur.Enabled = true
+
+-- 3. Функция создания БОЛЬШИХ "снежинок" на блюре
+local function CreateLargeParticle()
+    if not GlobalFX.Enabled then return end
+    
+    local p = Instance.new("Frame", GlobalFX)
+    local size = math.random(15, 40) -- Делаем частицы реально крупными
+    p.Size = UDim2.new(0, size, 0, size)
+    p.Position = UDim2.new(math.random(), 0, 1.1, 0) -- Появляются снизу
+    p.BackgroundColor3 = Color3.new(1, 1, 1)
+    p.BackgroundTransparency = 0.92 -- Делаем их очень призрачными и мягкими
+    p.BorderSizePixel = 0
+    
+    Instance.new("UICorner", p).CornerRadius = UDim.new(1, 0) -- Круглая форма
+    
+    -- Анимация медленного полета через весь экран
+    local targetPos = UDim2.new(p.Position.X.Scale + (math.random(-25, 25)/100), 0, -0.2, 0)
+    local tween = game:GetService("TweenService"):Create(p, TweenInfo.new(math.random(12, 22), Enum.EasingStyle.Linear), {
+        Position = targetPos,
+        BackgroundTransparency = 1,
+        Rotation = math.random(-120, 120)
+    })
+    
+    tween:Play()
+    tween.Completed:Connect(function() p:Destroy() end)
+end
+
+-- Постоянный цикл генерации (работает только когда меню открыто)
+task.spawn(function()
+    while task.wait(0.3) do
+        if GlobalFX.Enabled then
+            CreateLargeParticle()
+        end
+    end
+end)
+
+-- 4. ЕДИНАЯ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ (INSERT)
+local function ToggleEverything()
+    local IsActive = not ScreenGui.Enabled -- ScreenGui это твое основное меню
+    
+    -- Переключаем видимость меню и слоя частиц
+    ScreenGui.Enabled = IsActive
+    GlobalFX.Enabled = IsActive
+    
+    -- Плавный блюр (натекание за 0.5 сек)
+    game:GetService("TweenService"):Create(ScreenBlur, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+        Size = IsActive and 22 or 0
+    }):Play()
+    
+    -- Очистка частиц при закрытии (чтобы не ели FPS)
+    if not IsActive then
+        GlobalFX:ClearAllChildren()
+    end
+end
+
+-- Привязка к клавише INSERT
+game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+    -- Убираем проверку gpe, чтобы открывалось всегда
+    if input.KeyCode == Enum.KeyCode.Insert then
+        ToggleEverything()
+    end
+end)
+
+print(">>> SUPREME FX SYSTEM LOADED. ALL SYNCED TO INSERT.")
+
+-- [[ МАГИЧЕСКИЙ БЛОК ВИЗУАЛЬНЫХ ЭФФЕКТОВ ]]
+
+task.spawn(function()
+    -- Ждем чуть-чуть, чтобы всё меню успело создаться
+    task.wait(1)
+    
+    -- 1. Ищем твою рамку и статус
+    local UI = CoreGui:FindFirstChild("Menyoo_Final_V3") or CoreGui:FindFirstChild("Menyoo_Supreme")
+    if not UI then return end
+    
+    local Frame = UI:FindFirstChild("MainFrame") or UI:FindFirstChild("Main")
+    local Status = UI:FindFirstChild("UserStatus", true) or UI:FindFirstChild("StatusL", true)
+    local Stroke = Frame:FindFirstChildOfClass("UIStroke")
+
+    -- 2. Запускаем бесконечный цикл анимаций
+    while task.wait() do
+        -- Плавное мерцание рамки (от яркого к тусклому)
+        local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        
+        if Stroke then
+            TweenService:Create(Stroke, tweenInfo, {Transparency = 0.8}):Play()
+        end
+        if Status then
+            TweenService:Create(Status, tweenInfo, {TextTransparency = 0.5}):Play()
+        end
+        
+        task.wait(2) -- Пауза в пике тусклости
+        
+        if Stroke then
+            TweenService:Create(Stroke, tweenInfo, {Transparency = 0.2}):Play()
+        end
+        if Status then
+            TweenService:Create(Status, tweenInfo, {TextTransparency = 0}):Play()
+        end
+        
+        task.wait(2) -- Пауза в пике яркости
+    end
+end)
+
+-- [[ 10. ОПТИМИЗИРОВАННАЯ ВАТЕРМАРКА ]]
+task.spawn(function()
+    local WatermarkGui = Instance.new("ScreenGui", CoreGui)
+    WatermarkGui.Name = "Menyoo_Watermark_Overlay"
+    WatermarkGui.IgnoreGuiInset = true
+
+    local Watermark = Instance.new("Frame", WatermarkGui)
+    Watermark.BackgroundColor3 = Color3.fromRGB(15, 15, 15); Watermark.BackgroundTransparency = 0.2
+    Watermark.Position = UDim2.new(0, 20, 0, 20); Watermark.Size = UDim2.new(0, 260, 0, 25)
+    Watermark.Active = true; Watermark.Draggable = true
+    Instance.new("UICorner", Watermark).CornerRadius = UDim.new(0, 4)
+    Instance.new("UIStroke", Watermark).Color = Color3.new(1, 1, 1)
+
+    local Text = Instance.new("TextLabel", Watermark)
+    Text.Size = UDim2.new(1, 0, 1, 0); Text.BackgroundTransparency = 1
+    Text.Font = "GothamMedium"; Text.TextColor3 = Color3.new(1, 1, 1); Text.TextSize = 12
+    
+    local Stats = game:GetService("Stats")
+    -- ФИКС: Обновляем данные раз в 0.5 секунд вместо каждого кадра
+    task.spawn(function()
+        while task.wait(0.5) do
+            local fps = math.floor(Stats.Workspace.Heartbeat:GetValue())
+            local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            local time = os.date("%X")
+            Text.Text = string.format(" MENYOO V3 | %d FPS | %d MS | %s ", fps, ping, time)
+        end
+    end)
+end)
+
+
+
+-- [[ ОПТИМИЗИРОВАННЫЙ НЕОНОВЫЙ ПУЛЬС ]]
+task.spawn(function()
+    task.wait(1.5)
+    local UI = CoreGui:FindFirstChild("Menyoo_Final_V3") or CoreGui:FindFirstChild("Menyoo_Supreme")
+    if not UI then return end
+    
+    local Frame = UI:FindFirstChild("MainFrame") or UI:FindFirstChild("Main")
+    local Stroke = Frame:FindFirstChildOfClass("UIStroke")
+    local Status = UI:FindFirstChild("UserStatus", true) or UI:FindFirstChild("StatusL", true)
+
+    if Stroke then
+        -- Создаем одну бесконечную анимацию "дыхания"
+        local info = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        TweenService:Create(Stroke, info, {Transparency = 0.8}):Play()
+    end
+    
+    if Status then
+        local info = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        TweenService:Create(Status, info, {TextTransparency = 0.5}):Play()
+    end
+end)
